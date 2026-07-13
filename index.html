@@ -20,15 +20,15 @@
   --muted:#6e6c62;
   --white:#fffefb;
   --red:#8a2416;
-  --red-bg:#f7e9e6;
+  --red-bg:#f3ddd7;
   --amber:#93691b;
-  --amber-bg:#f6efdd;
+  --amber-bg:#f2e5c2;
   --green:#2f5233;
-  --green-bg:#e8ede7;
+  --green-bg:#d9e3da;
   --closed:#8b897e;
   --closed-bg:#eceae3;
   --blue:#2c4a63;
-  --blue-bg:#e6ecf0;
+  --blue-bg:#d7e1e9;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   --sans: 'IBM Plex Sans', system-ui, sans-serif;
 }
@@ -68,14 +68,18 @@ main{ flex:1; min-width:0; padding:26px 34px 60px; max-width:1220px; }
 .grid-2{ grid-template-columns:repeat(2,1fr); }
 @media (max-width:900px){ .grid-4{grid-template-columns:repeat(2,1fr);} .grid-3{grid-template-columns:repeat(2,1fr);} }
 
-.kpi{ border:1px solid var(--rule); border-left:4px solid var(--rule-strong); background:var(--white); padding:14px 16px; transition:box-shadow .15s; }
-.kpi:hover{ box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.kpi{ border:1px solid var(--rule); border-left:6px solid var(--rule-strong); background:var(--white); padding:14px 16px; transition:box-shadow .15s, transform .15s; }
+.kpi:hover{ box-shadow:0 3px 10px rgba(0,0,0,.10); transform:translateY(-1px); }
 .kpi .label{ font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
 .kpi .value{ font-family:var(--mono); font-size:28px; font-weight:600; margin-top:6px; line-height:1;}
-.kpi.red{ border-left-color:var(--red); background:linear-gradient(180deg, var(--red-bg) 0%, var(--white) 65%); } .kpi.red .value{ color:var(--red); }
-.kpi.amber{ border-left-color:var(--amber); background:linear-gradient(180deg, var(--amber-bg) 0%, var(--white) 65%); } .kpi.amber .value{ color:var(--amber); }
-.kpi.green{ border-left-color:var(--green); background:linear-gradient(180deg, var(--green-bg) 0%, var(--white) 65%); } .kpi.green .value{ color:var(--green); }
-.kpi.blue{ border-left-color:var(--blue); background:linear-gradient(180deg, var(--blue-bg) 0%, var(--white) 65%); } .kpi.blue .value{ color:var(--blue); }
+.kpi.red{ border-left-color:var(--red); background:linear-gradient(180deg, var(--red-bg) 0%, var(--white) 85%); } .kpi.red .value{ color:var(--red); }
+.kpi.red:hover{ background:linear-gradient(180deg, var(--red-bg) 0%, var(--white) 100%); box-shadow:0 3px 10px rgba(138,36,22,.18); }
+.kpi.amber{ border-left-color:var(--amber); background:linear-gradient(180deg, var(--amber-bg) 0%, var(--white) 85%); } .kpi.amber .value{ color:var(--amber); }
+.kpi.amber:hover{ background:linear-gradient(180deg, var(--amber-bg) 0%, var(--white) 100%); box-shadow:0 3px 10px rgba(147,105,27,.18); }
+.kpi.green{ border-left-color:var(--green); background:linear-gradient(180deg, var(--green-bg) 0%, var(--white) 85%); } .kpi.green .value{ color:var(--green); }
+.kpi.green:hover{ background:linear-gradient(180deg, var(--green-bg) 0%, var(--white) 100%); box-shadow:0 3px 10px rgba(47,82,51,.18); }
+.kpi.blue{ border-left-color:var(--blue); background:linear-gradient(180deg, var(--blue-bg) 0%, var(--white) 85%); } .kpi.blue .value{ color:var(--blue); }
+.kpi.blue:hover{ background:linear-gradient(180deg, var(--blue-bg) 0%, var(--white) 100%); box-shadow:0 3px 10px rgba(44,74,99,.18); }
 .kpi.closed{ border-left-color:var(--closed); } .kpi.closed .value{ color:var(--closed); }
 
 .section-label{ font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--blue); border-bottom:2px solid var(--blue); padding-bottom:6px; margin:26px 0 12px; display:flex; justify-content:space-between; align-items:center;}
@@ -92,6 +96,8 @@ tbody tr:hover{ background:var(--blue-bg); cursor:pointer; }
 .badge.green{ color:var(--green); background:var(--green-bg); } .badge.closed{ color:var(--closed); background:var(--closed-bg); }
 .badge.blue{ color:var(--blue); background:var(--blue-bg); }
 .dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle;}
+.chart-dot{ cursor:pointer; transition:r .12s; }
+.chart-dot:hover{ r:5.5; }
 .dot.red{background:var(--red);} .dot.amber{background:var(--amber);} .dot.green{background:var(--green);} .dot.closed{background:var(--closed);}
 
 label{ display:block; font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:4px; }
@@ -34329,7 +34335,7 @@ function imprimirOficio(){
 /* ====================== GRÁFICAS SVG (monocromo + color funcional) ====================== */
 const CHART_COLORS = { ink:'#1a1a17', blue:'#2c4a63', green:'#2f5233', amber:'#93691b', red:'#8a2416', closed:'#8b897e', muted:'#6e6c62', rule:'#d3d1c8' };
 const CHART_PALETTE = ['#2c4a63','#2f5233','#93691b','#6b3f6e','#1f6f6b','#8a2416','#4f5d75','#a05a2c','#3d6b8a','#5c7a3a'];
-const ESTADO_COLORS = { 'En tramite':CHART_COLORS.blue, 'Solucionado':CHART_COLORS.green, 'Cerrada':CHART_COLORS.closed, 'Respondida':CHART_COLORS.green, 'Trasladada a otra dependencia':CHART_COLORS.amber };
+const ESTADO_COLORS = { 'En tramite':CHART_COLORS.blue, 'Solucionado':CHART_COLORS.green, 'Cerrada':CHART_COLORS.closed, 'Respondida':'#1f6f6b', 'Trasladada a otra dependencia':CHART_COLORS.amber };
 function escapeXML(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function truncateStr(s,n){ s=String(s); return s.length>n ? s.slice(0,n-1)+'…' : s; }
 
@@ -34393,8 +34399,8 @@ function svgLineMulti(series, opts){
   const xLabels = labels.map((l,i)=>`<text x="${padL+i*stepX}" y="${h-4}" font-family="IBM Plex Mono, monospace" font-size="9" fill="${CHART_COLORS.muted}" text-anchor="middle">${l}</text>`).join('');
   const lines = series.map(s=>{
     const coords = s.values.map((v,i)=> `${padL+i*stepX},${yFor(v)}`).join(' ');
-    const dots = s.values.map((v,i)=>`<circle cx="${padL+i*stepX}" cy="${yFor(v)}" r="2.6" fill="${s.color}"></circle>`).join('');
-    return `<polyline points="${coords}" fill="none" stroke="${s.color}" stroke-width="2"></polyline>${dots}`;
+    const dots = s.values.map((v,i)=>`<circle class="chart-dot" cx="${padL+i*stepX}" cy="${yFor(v)}" r="3" fill="${s.color}"><title>${escapeXML(s.label)} — ${labels[i]}: ${v}</title></circle>`).join('');
+    return `<polyline points="${coords}" fill="none" stroke="${s.color}" stroke-width="${s.width||2}"></polyline>${dots}`;
   }).join('');
   return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${lines}${xLabels}</svg>`;
 }
@@ -34406,10 +34412,12 @@ function agruparPorMesDetallado(list){
   list.forEach(r=>{
     if(!r.fechaRecibo) return;
     const key = r.fechaRecibo.slice(0,7);
-    g[key] = g[key] || {recibidas:0, solucionadas:0, tramite:0};
+    g[key] = g[key] || {recibidas:0, solucionadas:0, tramite:0, porEstado:{}};
     g[key].recibidas++;
     if(ESTADOS_RESUELTOS.includes(r.estado)) g[key].solucionadas++;
     if(r.estado==='En tramite') g[key].tramite++;
+    const est = r.estado || 'Sin dato';
+    g[key].porEstado[est] = (g[key].porEstado[est]||0) + 1;
   });
   const meses = Object.keys(g).sort();
   return { meses, datos: g };
@@ -34418,6 +34426,16 @@ function mesLabel(m){
   const NOMBRES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const [y,mo] = m.split('-');
   return NOMBRES[parseInt(mo,10)-1] + '/' + y.slice(2);
+}
+function seriesEvolucionEstados(mesesOrdenados, porMesDatos){
+  const estadosPresentes = ESTADOS_PQR.filter(est => mesesOrdenados.some(m => (porMesDatos[m].porEstado[est]||0) > 0));
+  const series = [
+    {label:'Recibidas', color: CHART_COLORS.ink, width:2.5, values: mesesOrdenados.map(m=>porMesDatos[m].recibidas)}
+  ];
+  estadosPresentes.forEach(est=>{
+    series.push({label: est, color: ESTADO_COLORS[est] || CHART_COLORS.muted, values: mesesOrdenados.map(m=> porMesDatos[m].porEstado[est] || 0)});
+  });
+  return series;
 }
 function svgToPngDataURL(svgMarkup, width, height){
   return new Promise((resolve, reject)=>{
@@ -34536,12 +34554,9 @@ function calcularReporte(){
       <div>${estadoDonutItems.map(it=>`<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;font-size:12px;"><span style="width:11px;height:11px;background:${it.color};display:inline-block;"></span>${it.label} — <span style="font-family:var(--mono);">${it.value}</span></div>`).join('') || '<div class="small-muted">Sin datos.</div>'}</div>
     </div>
 
-    <div class="section-label">Evolución mensual: recibidas vs. solucionadas</div>
-    <div class="card">${svgLineMulti([
-      {label:'Recibidas', color:CHART_COLORS.blue, values:mesesOrdenados.map(m=>porMesDatos[m].recibidas)},
-      {label:'Solucionadas', color:CHART_COLORS.green, values:mesesOrdenados.map(m=>porMesDatos[m].solucionadas)}
-    ], {w:760,h:190,labels:mesesOrdenados.map(mesLabel)})}
-    ${chartLegend([{label:'Recibidas',color:CHART_COLORS.blue},{label:'Solucionadas',color:CHART_COLORS.green}])}</div>
+    <div class="section-label">Evolución mensual por estado</div>
+    <div class="card">${svgLineMulti(seriesEvolucionEstados(mesesOrdenados, porMesDatos), {w:760,h:200,labels:mesesOrdenados.map(mesLabel)})}
+    ${chartLegend(seriesEvolucionEstados(mesesOrdenados, porMesDatos).map(s=>({label:s.label,color:s.color})))}</div>
     <div class="card" style="margin-top:10px;">
       <table><thead><tr><th>Mes</th><th>Recibidas</th><th>Solucionadas</th><th>En trámite</th><th>% solución</th></tr></thead>
         <tbody>${mesesOrdenados.map(m=>{ const d=porMesDatos[m]; return `<tr><td>${mesLabel(m)}</td><td>${d.recibidas}</td><td>${d.solucionadas}</td><td>${d.tramite}</td><td>${d.recibidas?Math.round(d.solucionadas/d.recibidas*100):0}%</td></tr>`; }).join('') || '<tr><td colspan="5" class="small-muted" style="padding:12px;">Sin datos.</td></tr>'}</tbody>
@@ -34613,10 +34628,7 @@ async function exportarExcelConGraficas(list, groups, extra){
     const barH = 20, gap = 9;
     const barsHeight = (n)=> Math.max(60, n*(barH+gap)+gap);
     const donutSvg = svgDonut(extra.estadoDonutItems, {size:220, strokeW:34});
-    const lineaSvg = svgLineMulti([
-      {label:'Recibidas', color:CHART_COLORS.blue, values:extra.mesesOrdenados.map(m=>extra.porMesDatos[m].recibidas)},
-      {label:'Solucionadas', color:CHART_COLORS.green, values:extra.mesesOrdenados.map(m=>extra.porMesDatos[m].solucionadas)}
-    ], {w:640, h:220, labels:extra.mesesOrdenados.map(mesLabel)});
+    const lineaSvg = svgLineMulti(seriesEvolucionEstados(extra.mesesOrdenados, extra.porMesDatos), {w:640, h:220, labels:extra.mesesOrdenados.map(mesLabel)});
     const topEps = Object.entries(groups.porEps).sort((a,b)=>b[1].recibidas-a[1].recibidas).slice(0,10).map(([k,v])=>({label:k,value:v.recibidas}));
     const topMun = Object.entries(groups.porMunicipio).sort((a,b)=>b[1].recibidas-a[1].recibidas).slice(0,10).map(([k,v])=>({label:k,value:v.recibidas}));
     const barEpsSvg = svgHBar(topEps, {w:640});
@@ -34642,7 +34654,7 @@ async function exportarExcelConGraficas(list, groups, extra){
     }
     let row = 1;
     row = addImg(donutPng, row, 'Distribución por estado', 260, 260);
-    row = addImg(lineaPng, row, 'Evolución mensual: recibidas vs. solucionadas', 640, 220);
+    row = addImg(lineaPng, row, 'Evolución mensual por estado', 640, 220);
     row = addImg(epsPng, row, 'Top 10 EPS / entidades por volumen', 640, barsHeight(topEps.length));
     row = addImg(munPng, row, 'Top 10 municipios por volumen', 640, barsHeight(topMun.length));
 
@@ -34711,12 +34723,9 @@ function imprimirInformeGerencial(list, d){
       <div>${d.estadoDonutItems.map(it=>`<div style="font-size:11px;margin-bottom:4px;"><span style="display:inline-block;width:10px;height:10px;background:${it.color};margin-right:6px;"></span>${it.label}: <strong>${it.value}</strong></div>`).join('')}</div>
     </div>
 
-    <div style="font-family:var(--mono); font-weight:600; font-size:13px; margin:18px 0 8px;">3. Evolución mensual (recibidas vs. solucionadas)</div>
-    ${svgLineMulti([
-      {label:'Recibidas', color:CHART_COLORS.blue, values:mesesOrdenados.map(m=>porMesDatos[m].recibidas)},
-      {label:'Solucionadas', color:CHART_COLORS.green, values:mesesOrdenados.map(m=>porMesDatos[m].solucionadas)}
-    ], {w:680,h:160,labels:mesesOrdenados.map(mesLabel)})}
-    ${chartLegend([{label:'Recibidas',color:CHART_COLORS.blue},{label:'Solucionadas',color:CHART_COLORS.green}])}
+    <div style="font-family:var(--mono); font-weight:600; font-size:13px; margin:18px 0 8px;">3. Evolución mensual por estado</div>
+    ${svgLineMulti(seriesEvolucionEstados(mesesOrdenados, porMesDatos), {w:680,h:170,labels:mesesOrdenados.map(mesLabel)})}
+    ${chartLegend(seriesEvolucionEstados(mesesOrdenados, porMesDatos).map(s=>({label:s.label,color:s.color})))}
 
     <div style="font-family:var(--mono); font-weight:600; font-size:13px; margin:18px 0 8px;">4. Top 10 EPS / entidades</div>
     ${svgHBar(Object.entries(d.porEps).sort((a,b)=>b[1].recibidas-a[1].recibidas).slice(0,10).map(([k,v])=>({label:k,value:v.recibidas})), {w:680})}
