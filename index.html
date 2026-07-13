@@ -19,16 +19,16 @@
   --rule-strong:#a9a79c;
   --muted:#6e6c62;
   --white:#fffefb;
-  --red:#8a2416;
-  --red-bg:#f3ddd7;
-  --amber:#93691b;
-  --amber-bg:#f2e5c2;
-  --green:#2f5233;
-  --green-bg:#d9e3da;
-  --closed:#8b897e;
-  --closed-bg:#eceae3;
-  --blue:#2c4a63;
-  --blue-bg:#d7e1e9;
+  --red:#a3281a;
+  --red-bg:#f0d4cd;
+  --amber:#a3760e;
+  --amber-bg:#f0dfab;
+  --green:#1c7a43;
+  --green-bg:#c3e2cd;
+  --closed:#78766b;
+  --closed-bg:#e4e2d9;
+  --blue:#20567e;
+  --blue-bg:#cdddea;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   --sans: 'IBM Plex Sans', system-ui, sans-serif;
 }
@@ -96,8 +96,9 @@ tbody tr:hover{ background:var(--blue-bg); cursor:pointer; }
 .badge.green{ color:var(--green); background:var(--green-bg); } .badge.closed{ color:var(--closed); background:var(--closed-bg); }
 .badge.blue{ color:var(--blue); background:var(--blue-bg); }
 .dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle;}
-.chart-dot{ cursor:pointer; transition:r .12s; }
-.chart-dot:hover{ r:5.5; }
+.chart-dot{ transition:r .12s; }
+.chart-hover-zone{ cursor:pointer; }
+.chart-hover-zone:hover{ fill:rgba(32,86,126,.06); }
 .dot.red{background:var(--red);} .dot.amber{background:var(--amber);} .dot.green{background:var(--green);} .dot.closed{background:var(--closed);}
 
 label{ display:block; font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:4px; }
@@ -33631,7 +33632,7 @@ function renderDashboard(){
     list.forEach(r=>{ const k = groupFn(r) || 'Sin dato'; counts[k]=(counts[k]||0)+1; });
     const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,top);
     const max = Math.max(1, ...entries.map(e=>e[1]));
-    const paleta = ['#2c4a63','#2f5233','#93691b','#6b3f6e','#1f6f6b','#8a2416','#4f5d75','#a05a2c','#3d6b8a','#5c7a3a'];
+    const paleta = ['#20567e','#1c7a43','#a3760e','#7a3f7d','#1f8079','#a3281a','#4f5d75','#a05a2c','#2f7aa3','#5c8a2e'];
     document.getElementById(elId).innerHTML = entries.length ? entries.map(([k,v],i)=>`
       <div class="bar-row"><div class="lbl" title="${k}">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${(v/max*100)}%; background:${paleta[i%paleta.length]};"></div></div><div class="bar-num">${v}</div></div>
     `).join('') : '<div class="empty">Sin datos aún.</div>';
@@ -34333,9 +34334,9 @@ function imprimirOficio(){
 }
 
 /* ====================== GRÁFICAS SVG (monocromo + color funcional) ====================== */
-const CHART_COLORS = { ink:'#1a1a17', blue:'#2c4a63', green:'#2f5233', amber:'#93691b', red:'#8a2416', closed:'#8b897e', muted:'#6e6c62', rule:'#d3d1c8' };
-const CHART_PALETTE = ['#2c4a63','#2f5233','#93691b','#6b3f6e','#1f6f6b','#8a2416','#4f5d75','#a05a2c','#3d6b8a','#5c7a3a'];
-const ESTADO_COLORS = { 'En tramite':CHART_COLORS.blue, 'Solucionado':CHART_COLORS.green, 'Cerrada':CHART_COLORS.closed, 'Respondida':'#1f6f6b', 'Trasladada a otra dependencia':CHART_COLORS.amber };
+const CHART_COLORS = { ink:'#1a1a17', blue:'#20567e', green:'#1c7a43', amber:'#a3760e', red:'#a3281a', closed:'#78766b', muted:'#6e6c62', rule:'#d3d1c8' };
+const CHART_PALETTE = ['#20567e','#1c7a43','#a3760e','#7a3f7d','#1f8079','#a3281a','#4f5d75','#a05a2c','#2f7aa3','#5c8a2e'];
+const ESTADO_COLORS = { 'En tramite':CHART_COLORS.blue, 'Solucionado':CHART_COLORS.green, 'Cerrada':CHART_COLORS.closed, 'Respondida':'#1f8079', 'Trasladada a otra dependencia':CHART_COLORS.amber };
 function escapeXML(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function truncateStr(s,n){ s=String(s); return s.length>n ? s.slice(0,n-1)+'…' : s; }
 
@@ -34399,10 +34400,17 @@ function svgLineMulti(series, opts){
   const xLabels = labels.map((l,i)=>`<text x="${padL+i*stepX}" y="${h-4}" font-family="IBM Plex Mono, monospace" font-size="9" fill="${CHART_COLORS.muted}" text-anchor="middle">${l}</text>`).join('');
   const lines = series.map(s=>{
     const coords = s.values.map((v,i)=> `${padL+i*stepX},${yFor(v)}`).join(' ');
-    const dots = s.values.map((v,i)=>`<circle class="chart-dot" cx="${padL+i*stepX}" cy="${yFor(v)}" r="3" fill="${s.color}"><title>${escapeXML(s.label)} — ${labels[i]}: ${v}</title></circle>`).join('');
+    const dots = s.values.map((v,i)=>`<circle class="chart-dot" cx="${padL+i*stepX}" cy="${yFor(v)}" r="3" fill="${s.color}"></circle>`).join('');
     return `<polyline points="${coords}" fill="none" stroke="${s.color}" stroke-width="${s.width||2}"></polyline>${dots}`;
   }).join('');
-  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${lines}${xLabels}</svg>`;
+  const colW = labels.length>1 ? stepX : innerW;
+  const hoverZones = labels.map((l,i)=>{
+    const x = padL+i*stepX;
+    const zoneX = Math.max(0, x - colW/2);
+    const resumen = [l].concat(series.map(s=> `${s.label}: ${s.values[i]}`)).join('\n');
+    return `<rect class="chart-hover-zone" x="${zoneX}" y="0" width="${colW}" height="${h}" fill="transparent"><title>${escapeXML(resumen)}</title></rect>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${lines}${xLabels}${hoverZones}</svg>`;
 }
 function chartLegend(items){
   return `<div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px;">${items.map(it=>`<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;"><span style="width:11px;height:3px;background:${it.color};display:inline-block;"></span>${it.label}</div>`).join('')}</div>`;
