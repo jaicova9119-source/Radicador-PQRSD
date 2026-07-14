@@ -35237,15 +35237,34 @@ async function buscarDriveParaRadicado(r){
   const cont = document.getElementById('driveResultados');
   cont.innerHTML = 'Buscando...';
   try{
+    const esUtil = v => v && String(v).trim() && !['N/A','NA','N-A','NINGUNO','-'].includes(String(v).trim().toUpperCase());
+    const intentos = [
+      {campo:'numIdPeticionario', valor: r.numIdPeticionario},
+      {campo:'numIdAfectado', valor: r.numIdAfectado},
+      {campo:'nombreAfectado', valor: r.nombreAfectado},
+      {campo:'nombrePeticionario', valor: r.nombrePeticionario},
+      {campo:'codificacionEntidad', valor: r.codificacionEntidad},
+    ].filter(it=> esUtil(it.valor));
+
     let folders = [];
-    if(r.numIdPeticionario) folders = await buscarCarpetaDrive(r.numIdPeticionario);
-    if(!folders.length && r.nombrePeticionario) folders = await buscarCarpetaDrive(r.nombrePeticionario);
-    if(!folders.length){ cont.innerHTML = '<span class="small-muted">No se encontraron carpetas que coincidan con el documento o el nombre del peticionario.</span>'; return; }
+    let campoEncontrado = '';
+    for(const it of intentos){
+      folders = await buscarCarpetaDrive(String(it.valor).trim());
+      if(folders.length){ campoEncontrado = it.campo; break; }
+    }
+    if(!folders.length){
+      cont.innerHTML = `<span class="small-muted">No se encontraron carpetas que coincidan con ninguno de estos datos: ${intentos.map(i=>i.valor).join(', ') || 'sin datos útiles para buscar'}. Si los archivos sí existen en Drive, revise si la carpeta tiene un nombre distinto (ej. otra forma de escribir el nombre, o el radicado en vez del nombre).</span>`;
+      return;
+    }
+    let avisoCampo = '';
+    if(campoEncontrado && campoEncontrado !== 'numIdPeticionario' && campoEncontrado !== 'nombrePeticionario'){
+      avisoCampo = `<div class="note-box blue" style="margin-bottom:8px;">Encontrado buscando por <strong>${campoEncontrado === 'nombreAfectado' || campoEncontrado === 'numIdAfectado' ? 'los datos del afectado' : 'la codificación de la entidad'}</strong>, ya que el peticionario de este caso es una entidad/tercero (no la persona afectada).</div>`;
+    }
 
     const nombresRepetidos = Object.entries(folders.reduce((acc,f)=>{acc[f.name]=(acc[f.name]||0)+1; return acc;},{})).filter(([,n])=>n>1).map(([n])=>n);
     const avisoTop = nombresRepetidos.length ? `<div class="note-box" style="border-left-color:var(--amber); margin-bottom:8px;">⚠️ Se encontraron ${folders.length} carpetas y al menos dos tienen el mismo nombre ("${nombresRepetidos[0]}"). Esto normalmente significa que hay una carpeta duplicada en el Drive (no es un error de la búsqueda) — revise ambos enlaces "Abrir en Drive"; si son direcciones distintas, es un duplicado real que conviene fusionar o eliminar manualmente en Drive.</div>` : '';
 
-    cont.innerHTML = avisoTop + folders.map(f=>`
+    cont.innerHTML = avisoCampo + avisoTop + folders.map(f=>`
       <div style="border:1px solid var(--rule); padding:8px; margin-bottom:6px;">
         <div>📁 <strong>${f.name}</strong> — <a href="${f.webViewLink}" target="_blank" rel="noopener">Abrir en Drive</a> <span class="small-muted">(id: ${f.id.slice(0,8)}…)</span></div>
         <div class="drive-files" data-folder="${f.id}" style="margin-top:6px; font-size:11px;">Cargando archivos...</div>
