@@ -33557,7 +33557,8 @@ async function loadDB(){
     await saveDB();
   }
 }
-async function saveDB(){
+async function saveDB(marcarPendiente){
+  if(marcarPendiente === undefined) marcarPendiente = true;
   try{
     await window.storage.set('pqrsd-db-v2', JSON.stringify(DB), false);
   }catch(e){
@@ -33565,6 +33566,11 @@ async function saveDB(){
     try{ localStorage.setItem('pqrsd-db-v2', JSON.stringify(DB)); }
     catch(e2){ console.error('No fue posible guardar los datos (ni window.storage ni localStorage disponibles):', e2); }
   }
+  if(marcarPendiente){
+    cambiosPendientesDrive = true;
+    programarAutoSyncDrive();
+  }
+  actualizarBadgeSync();
 }
 function uid(){ return 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 function gestionDe(r){ return (r && r.gestionadoDesde) || 'Mocoa'; }
@@ -34436,7 +34442,8 @@ function mesLabel(m){
   return NOMBRES[parseInt(mo,10)-1] + '/' + y.slice(2);
 }
 function seriesEvolucionEstados(mesesOrdenados, porMesDatos){
-  const estadosPresentes = ESTADOS_PQR.filter(est => mesesOrdenados.some(m => (porMesDatos[m].porEstado[est]||0) > 0));
+  const ESTADOS_EN_GRAFICA = ESTADOS_PQR.filter(est => est !== 'Cerrada');
+  const estadosPresentes = ESTADOS_EN_GRAFICA.filter(est => mesesOrdenados.some(m => (porMesDatos[m].porEstado[est]||0) > 0));
   const series = [
     {label:'Recibidas', color: CHART_COLORS.ink, width:2.5, values: mesesOrdenados.map(m=>porMesDatos[m].recibidas)}
   ];
@@ -35049,6 +35056,79 @@ let googleTokenClient = null;
 let googleAccessToken = null;
 let googleTokenExpiry = 0;
 let googleScopeOtorgado = '';
+let cambiosPendientesDrive = false;
+let syncDriveEnCurso = false;
+let autoSyncDriveTimer = null;
+
+function actualizarBadgeSync(){
+  const el = document.getElementById('storageNote');
+  if(!el) return;
+  if(!navigator.onLine){
+    el.innerHTML = '🔴 Sin conexión — trabajando localmente. Se sincronizará al volver internet.';
+    return;
+  }
+  const conectado = googleAccessToken && Date.now() < googleTokenExpiry;
+  if(!conectado){
+    el.innerHTML = cambiosPendientesDrive ? '⚪ Guardado en este dispositivo (Drive no conectado)' : '⚪ Datos guardados en este dispositivo';
+    return;
+  }
+  if(syncDriveEnCurso){ el.innerHTML = '🔄 Sincronizando con Drive...'; return; }
+  if(cambiosPendientesDrive){ el.innerHTML = '🟡 Cambios sin sincronizar con Drive'; return; }
+  const ult = DB.config.ultimaSincronizacionISO;
+  el.innerHTML = '🟢 Sincronizado con Drive' + (ult ? ` — ${new Date(ult).toLocaleString('es-CO')}` : '');
+}
+function programarAutoSyncDrive(){
+  if(autoSyncDriveTimer) clearTimeout(autoSyncDriveTimer);
+  autoSyncDriveTimer = setTimeout(()=>{ chequearYSincronizarDrive(); }, 4000);
+}
+async function chequearYSincronizarDrive(){
+  if(DB.config.autoSyncDrive === false) return;
+  if(!navigator.onLine){ actualizarBadgeSync(); return; }
+  if(!googleAccessToken || Date.now() >= googleTokenExpiry){ actualizarBadgeSync(); return; }
+  if(syncDriveEnCurso) return;
+  syncDriveEnCurso = true;
+  actualizarBadgeSync();
+  try{
+    if(cambiosPendientesDrive){
+      await _subirRespaldoDriveCore();
+      cambiosPendientesDrive = false;
+      DB.config.ultimaSincronizacionISO = new Date().toISOString();
+      await saveDB(false);
+    } else {
+      // Sin cambios locales pendientes: revisar si hay un respaldo remoto más reciente que no tenemos
+      const archivo = await buscarArchivoRespaldo();
+      if(archivo){
+        const remoteTime = new Date(archivo.modifiedTime).getTime();
+        const localSyncTime = DB.config.ultimaSincronizacionISO ? new Date(DB.config.ultimaSincronizacionISO).getTime() : 0;
+        if(remoteTime > localSyncTime + 5000){
+          const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${archivo.id}?alt=media`, { headers:{ Authorization:`Bearer ${googleAccessToken}` } });
+          if(resp.ok){
+            const texto = await resp.text();
+            const cargado = JSON.parse(texto);
+            cargado.config = {...DB.config, ...(cargado.config||{}), ultimaSincronizacionISO: new Date().toISOString()};
+            DB = cargado;
+            await saveDB(false);
+            renderAll();
+          }
+        }
+      }
+    }
+  }catch(e){
+    console.error('Auto-sincronización con Drive falló:', e.message);
+  } finally {
+    syncDriveEnCurso = false;
+    actualizarBadgeSync();
+  }
+}
+function intentarAutoConexionDrive(){
+  if(!DB.config.googleClientId) return;
+  if(DB.config.autoSyncDrive === false) return;
+  if(!googleTokenClient && !initGoogleAuth()) return;
+  try{ googleTokenClient.requestAccessToken({ prompt: '' }); }
+  catch(e){ /* fallo silencioso: el usuario puede conectar manualmente */ }
+}
+window.addEventListener('online', ()=>{ actualizarBadgeSync(); if(cambiosPendientesDrive) chequearYSincronizarDrive(); });
+window.addEventListener('offline', ()=>{ actualizarBadgeSync(); });
 
 function initGoogleAuth(){
   if(!DB.config.googleClientId) return false;
@@ -35063,6 +35143,8 @@ function initGoogleAuth(){
         googleScopeOtorgado = resp.scope || '';
         console.log('Scope realmente otorgado por Google:', googleScopeOtorgado);
         actualizarEstadoDrive();
+        actualizarBadgeSync();
+        chequearYSincronizarDrive();
       }
     }
   });
@@ -35074,6 +35156,7 @@ function conectarGoogleDrive(){
     alert('No fue posible inicializar Google (verifique su conexión a internet, o que esta página se esté abriendo desde una dirección http/https autorizada).');
     return;
   }
+  if(DB.config.autoSyncDrive === undefined){ DB.config.autoSyncDrive = true; saveDB(false); }
   googleTokenClient.requestAccessToken({ prompt: 'consent' });
 }
 function actualizarEstadoDrive(){
@@ -35147,6 +35230,50 @@ async function limpiarDuplicadosRespaldo(){
   }
 }
 
+async function _subirRespaldoDriveCore(){
+  const contenido = JSON.stringify(DB);
+
+  async function crearArchivoNuevo(){
+    const creado = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: NOMBRE_ARCHIVO_RESPALDO }),
+    });
+    if(!creado.ok){
+      const detalle = await creado.json().catch(()=>({}));
+      throw new Error('No se pudo crear el archivo en Drive (código '+creado.status+'): '+(detalle?.error?.message||'sin detalle'));
+    }
+    return await creado.json();
+  }
+
+  async function subirContenido(fileId){
+    return fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json' },
+      body: contenido,
+    });
+  }
+
+  let archivo = await buscarArchivoRespaldo();
+  if(!archivo){
+    archivo = await crearArchivoNuevo();
+  }
+
+  let subida = await subirContenido(archivo.id);
+  if(!subida.ok && subida.status === 403){
+    const detalleTexto = JSON.stringify(await subida.clone().json().catch(()=>({})));
+    // Solo reintentar como archivo nuevo si es un problema de permisos/propiedad del archivo — NUNCA si es cuota llena u otro error
+    const esProblemaDePermiso = /permission|forbidden|access/i.test(detalleTexto) && !/quota|storage/i.test(detalleTexto);
+    if(esProblemaDePermiso){
+      archivo = await crearArchivoNuevo();
+      subida = await subirContenido(archivo.id);
+    }
+  }
+  if(!subida.ok){
+    const detalle = await subida.json().catch(()=>({}));
+    throw new Error('No se pudo guardar el contenido en Drive (código '+subida.status+'): '+(detalle?.error?.message||'sin detalle'));
+  }
+}
 async function subirRespaldoADrive(){
   const estado = document.getElementById('driveSyncEstado');
   if(!googleAccessToken || Date.now() >= googleTokenExpiry){
@@ -35155,48 +35282,11 @@ async function subirRespaldoADrive(){
   }
   estado.textContent = 'Guardando respaldo en Drive...';
   try{
-    const contenido = JSON.stringify(DB);
-
-    async function crearArchivoNuevo(){
-      const creado = await fetch('https://www.googleapis.com/drive/v3/files', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: NOMBRE_ARCHIVO_RESPALDO }),
-      });
-      if(!creado.ok){
-        const detalle = await creado.json().catch(()=>({}));
-        throw new Error('No se pudo crear el archivo en Drive (código '+creado.status+'): '+(detalle?.error?.message||'sin detalle'));
-      }
-      return await creado.json();
-    }
-
-    async function subirContenido(fileId){
-      return fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json' },
-        body: contenido,
-      });
-    }
-
-    let archivo = await buscarArchivoRespaldo();
-    if(!archivo){
-      archivo = await crearArchivoNuevo();
-    }
-
-    let subida = await subirContenido(archivo.id);
-    if(!subida.ok && subida.status === 403){
-      const detalleTexto = JSON.stringify(await subida.clone().json().catch(()=>({})));
-      // Solo reintentar como archivo nuevo si es un problema de permisos/propiedad del archivo — NUNCA si es cuota llena u otro error
-      const esProblemaDePermiso = /permission|forbidden|access/i.test(detalleTexto) && !/quota|storage/i.test(detalleTexto);
-      if(esProblemaDePermiso){
-        archivo = await crearArchivoNuevo();
-        subida = await subirContenido(archivo.id);
-      }
-    }
-    if(!subida.ok){
-      const detalle = await subida.json().catch(()=>({}));
-      throw new Error('No se pudo guardar el contenido en Drive (código '+subida.status+'): '+(detalle?.error?.message||'sin detalle'));
-    }
+    await _subirRespaldoDriveCore();
+    cambiosPendientesDrive = false;
+    DB.config.ultimaSincronizacionISO = new Date().toISOString();
+    await saveDB(false);
+    actualizarBadgeSync();
     estado.innerHTML = `<span style="color:var(--green);">✓ Respaldo guardado en Drive — ${new Date().toLocaleString('es-CO')}</span>`;
   }catch(e){
     estado.innerHTML = `<span style="color:var(--red);">${e.message}</span>`;
@@ -35225,8 +35315,11 @@ async function descargarRespaldoDeDrive(){
     const cargado = JSON.parse(texto);
     cargado.config = {...DB.config, ...(cargado.config||{})};
     DB = cargado;
-    await saveDB();
+    cambiosPendientesDrive = false;
+    DB.config.ultimaSincronizacionISO = new Date().toISOString();
+    await saveDB(false);
     renderAll();
+    actualizarBadgeSync();
     estado.innerHTML = `<span style="color:var(--green);">✓ Datos cargados desde Drive (respaldo del ${new Date(archivo.modifiedTime).toLocaleString('es-CO')})</span>`;
   }catch(e){
     estado.innerHTML = `<span style="color:var(--red);">${e.message}</span>`;
@@ -35348,12 +35441,17 @@ function renderDatos(){
 
     <div class="section-label">Respaldo de datos en Google Drive <span class="small-muted" style="text-transform:none;">(para que la información no dependa solo de este computador)</span></div>
     <div class="note-box blue">Guarda o recupera todos los radicados, el directorio de contactos y la configuración como un archivo en su propio Google Drive ("pqrsd-respaldo.json"). Use "Conectar con Google Drive" arriba primero. La primera vez que use esto, va a pedirle aceptar un permiso adicional (de solo lectura pasa a lectura y escritura de este archivo).</div>
+    <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-family:var(--sans); font-size:13px; margin-bottom:10px; cursor:pointer;">
+      <input type="checkbox" id="chkAutoSyncDrive" style="width:auto; margin:0;" ${DB.config.autoSyncDrive !== false ? 'checked' : ''}>
+      Sincronizar automáticamente con Drive al iniciar sesión y después de cada cambio
+    </label>
     <div class="btn-row">
       <button class="btn" id="btnSubirDrive" type="button">☁️ Guardar respaldo en Drive</button>
       <button class="btn secondary" id="btnDescargarDrive" type="button">⬇️ Cargar respaldo desde Drive</button>
       <button class="btn secondary" id="btnLimpiarDuplicados" type="button">🧹 Limpiar copias duplicadas</button>
     </div>
     <div id="driveSyncEstado" class="small-muted" style="margin-top:8px;"></div>
+    <div class="small-muted" style="margin-top:4px;">Si trabaja sin internet, todo se sigue guardando en este dispositivo con normalidad; en cuanto vuelva la conexión, los cambios se suben solos a Drive (siempre que la sincronización automática esté activada y ya se haya conectado a Drive al menos una vez).</div>
 
     <div class="section-label">Contraseña de acceso</div>
     <div class="note-box">Se pide al abrir la plataforma. Cámbiela aquí si lo necesita (recuerde avisar a quien más use este equipo).</div>
@@ -35429,6 +35527,11 @@ document.getElementById('btnExportarTodoExcel').addEventListener('click', ()=> e
   document.getElementById('btnConectarDrive').addEventListener('click', conectarGoogleDrive);
   document.getElementById('btnSubirDrive').addEventListener('click', subirRespaldoADrive);
   document.getElementById('btnDescargarDrive').addEventListener('click', descargarRespaldoDeDrive);
+  document.getElementById('chkAutoSyncDrive').addEventListener('change', (e)=>{
+    DB.config.autoSyncDrive = e.target.checked;
+    saveDB(false);
+    if(e.target.checked) intentarAutoConexionDrive();
+  });
   document.getElementById('btnLimpiarDuplicados').addEventListener('click', limpiarDuplicadosRespaldo);
   document.getElementById('btnCambiarPassword').addEventListener('click', ()=>{
     const nueva = document.getElementById('cfg_nuevapassword').value;
@@ -35795,6 +35898,8 @@ async function iniciarApp(){
   document.getElementById('app').style.display = 'flex';
   await loadDB();
   renderAll();
+  actualizarBadgeSync();
+  intentarAutoConexionDrive();
 }
 document.getElementById('btnLogin').addEventListener('click', ()=>{
   const intento = document.getElementById('loginPassword').value;
